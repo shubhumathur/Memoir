@@ -1,0 +1,10 @@
+{
+  "name": "memoir",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "echo 'Use docker compose up --build or run services individually'",
+    "dev": "echo 'Run: cd frontend && npm run dev'",
+    "backend": "cd backend && npm start",
+    "frontend": "cd frontend && npm run dev"
+  }
+}

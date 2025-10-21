@@ -1,0 +1,96 @@
+services:
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:4000
+    command: ["npm","run","dev"]
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+  backend:
+    build: ./backend
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - MONGO_URI=mongodb://mongo:27017/memoir
+      - JWT_SECRET=devsecret
+      - SENTIMENT_URL=http://sentiment:8001/sentiment
+      - CHAT_URL=http://chat:8002/chat
+      - SUMMARY_URL=http://summary:8003/summary
+      - NEO4J_URI=neo4j://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASS=pass
+    depends_on:
+      - mongo
+      - neo4j
+    command: ["npm","start"]
+    working_dir: /app
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  neo4j:
+    image: neo4j:5
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      - NEO4J_AUTH=neo4j/pass
+    volumes:
+      - neo4j_data:/data
+
+  sentiment:
+    build: ./services/sentiment
+    command: ["uvicorn","main:app","--host","0.0.0.0","--port","8001"]
+    ports:
+      - "8001:8001"
+    working_dir: /app
+    volumes:
+      - ./services/sentiment:/app
+
+  chat:
+    build: ./services/chat
+    command: ["uvicorn","main:app","--host","0.0.0.0","--port","8002"]
+    ports:
+      - "8002:8002"
+    working_dir: /app
+    volumes:
+      - ./services/chat:/app
+
+  summary:
+    build: ./services/summary
+    command: ["uvicorn","main:app","--host","0.0.0.0","--port","8003"]
+    ports:
+      - "8003:8003"
+    working_dir: /app
+    volumes:
+      - ./services/summary:/app
+
+  insights:
+    build: ./services/insights
+    command: ["uvicorn","main:app","--host","0.0.0.0","--port","8004"]
+    ports:
+      - "8004:8004"
+    working_dir: /app
+    volumes:
+      - ./services/insights:/app
+
+volumes:
+  mongo_data:
+  neo4j_data:
+
+
+
+
