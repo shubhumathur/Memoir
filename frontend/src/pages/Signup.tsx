@@ -1,18 +1,34 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import axios from 'axios';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Signup() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [persona, setPersona] = useState('mentor');
   const [agree, setAgree] = useState(false);
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!agree) return;
-    navigate('/dashboard');
+    setIsLoading(true);
+    setError('');
+    try {
+      await axios.post('/auth/register', { username, email, password, persona });
+      // Auto-login after successful registration
+      await login(email, password);
+      navigate('/dashboard');
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Registration failed');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -35,7 +51,9 @@ export default function Signup() {
           <input type="checkbox" checked={agree} onChange={()=>setAgree(!agree)} />
           <span>I agree to the disclaimer and understand this is not medical advice.</span>
         </label>
-        <button className="w-full bg-blue-600 text-white py-2 rounded mt-4" disabled={!agree}>Sign up</button>
+        <button className="w-full bg-blue-600 text-white py-2 rounded mt-4" disabled={!agree || isLoading}>
+          {isLoading ? 'Creating account...' : 'Sign up'}
+        </button>
         <p className="mt-4 text-sm text-center">Have an account? <Link to="/login" className="text-blue-600">Login</Link></p>
       </form>
     </div>

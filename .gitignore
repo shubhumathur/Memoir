@@ -29,6 +29,8 @@ logs/
 .env.development.local
 .env.test.local
 .env.production.local
+# Gemini API keys
+.gemini_key
 
 # OS generated files
 .DS_Store

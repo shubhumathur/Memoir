@@ -31,10 +31,10 @@ Memoir is an AI-powered mental wellness platform designed to help users with ref
 - **Bcrypt** for password hashing
 
 ### Microservices (FastAPI)
-- **Chat Service**: Handles AI conversations
+- **Chat Service**: Handles AI conversations with empathetic personas using Gemini
 - **Sentiment Service**: Analyzes text for emotions and keywords
 - **Insights Service**: Extracts patterns and trends
-- **Summary Service**: Generates reflective summaries
+- **Summary Service**: Generates compassionate AI-powered reflective summaries using Gemini NLG
 
 ### Infrastructure
 - **Docker** and Docker Compose for containerization
@@ -172,6 +172,12 @@ NEO4J_USER=neo4j
 NEO4J_PASS=pass
 ```
 
+For the Summary Service, create a `.env` file in `services/summary/` with:
+
+```env
+GEMINI_API_KEY=your_gemini_api_key_here
+```
+
 ## Contributing
 
 1. Fork the repository.
@@ -195,5 +201,6 @@ Memoir is designed for informational and supportive purposes only. It is not a s
 - AI/microservice logic is stubbed for demo purposes. Replace with real models/APIs in production.
 - Backend falls back to demo responses if microservices are unavailable.
 - Demo data is seeded for testing; use `npm run seed` in backend.
+- Summary Service uses Gemini API for compassionate NLG summaries. Set GEMINI_API_KEY in services/summary/.env for full functionality.
 
 

@@ -1,13 +1,21 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { clsx } from 'clsx';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, logout, isLoading } = useAuth();
   const [dark, setDark] = useState(false);
 
   const isAuthed = location.pathname !== '/' && location.pathname !== '/login' && location.pathname !== '/signup';
+
+  useEffect(() => {
+    if (!isLoading && !user && isAuthed) {
+      navigate('/login');
+    }
+  }, [user, isLoading, isAuthed, navigate]);
 
   return (
     <div className={clsx('min-h-screen', dark && 'dark')}> 
@@ -22,7 +30,7 @@ export default function App() {
               <NavItem to="/insights" label="Insights" />
               <NavItem to="/time-travel" label="Time Travel" />
               <NavItem to="/settings" label="Settings" />
-              <button className="text-left px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => navigate('/')}>Logout</button>
+              <button className="text-left px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => { logout(); navigate('/'); }}>Logout</button>
             </nav>
             <div className="mt-auto">
               <label className="flex items-center gap-2 text-sm">
