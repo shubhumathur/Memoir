@@ -10,6 +10,7 @@ import chatRoutes from './routes/chat.js';
 import sentimentRoutes from './routes/sentiment.js';
 import insightsRoutes from './routes/insights.js';
 import settingsRoutes from './routes/settings.js';
+import habitsRoutes from './routes/habits.js';
 
 dotenv.config();
 
@@ -38,6 +39,7 @@ app.use('/chat', chatRoutes);
 app.use('/sentiment', sentimentRoutes);
 app.use('/insights', insightsRoutes);
 app.use('/settings', settingsRoutes);
+app.use('/habits', habitsRoutes);
 
 app.use((err, _req, res, _next) => {
   console.error(err);

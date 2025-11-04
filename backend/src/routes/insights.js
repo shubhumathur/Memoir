@@ -103,6 +103,73 @@ router.post('/summary', requireAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// New prompts endpoint
+router.get('/prompts', requireAuth, async (req, res, next) => {
+  try {
+    const { tags } = req.query;
+    const tagArray = tags ? tags.split(',') : [];
+
+    // Get user's recent journal entries for context
+    const recentEntries = await JournalLog.find({ userId: req.userId })
+      .sort({ date: -1 })
+      .limit(10);
+
+    // Extract common themes
+    const allKeywords = recentEntries.flatMap(entry => entry.keywords || []);
+    const keywordCounts = {};
+    allKeywords.forEach(keyword => {
+      keywordCounts[keyword] = (keywordCounts[keyword] || 0) + 1;
+    });
+
+    const topKeywords = Object.keys(keywordCounts).slice(0, 5);
+
+    // Generate contextual prompts based on user's journaling patterns
+    const prompts = [
+      { text: 'What made you smile today?', category: 'Reflection' },
+      { text: 'Describe a moment when you felt proud of yourself.', category: 'Achievement' },
+      { text: 'What are you grateful for right now?', category: 'Gratitude' },
+      { text: 'What challenge did you overcome today?', category: 'Resilience' },
+      { text: 'How did you take care of yourself today?', category: 'Self-care' },
+    ];
+
+    // Add contextual prompts based on tags/keywords
+    if (tagArray.length > 0 || topKeywords.length > 0) {
+      const contextTags = tagArray.length > 0 ? tagArray : topKeywords;
+      prompts.push(
+        { text: `Reflect on your experiences with ${contextTags[0] || 'this topic'}.`, category: 'Contextual' },
+        { text: `How has ${contextTags[0] || 'this'} affected your mood recently?`, category: 'Contextual' }
+      );
+    }
+
+    // Add prompts based on recent emotions
+    const recentEmotions = recentEntries.flatMap(entry => entry.emotions || []);
+    if (recentEmotions.length > 0) {
+      const emotionCounts = {};
+      recentEmotions.forEach(emotion => {
+        emotionCounts[emotion] = (emotionCounts[emotion] || 0) + 1;
+      });
+      const topEmotion = Object.keys(emotionCounts).sort((a, b) => emotionCounts[b] - emotionCounts[a])[0];
+      prompts.push(
+        { text: `Explore your feelings about ${topEmotion.toLowerCase()}.`, category: 'Emotional' }
+      );
+    }
+
+    res.json({ prompts: prompts.slice(0, 8) });
+  } catch (e) {
+    console.error('Prompts error:', e);
+    // Fallback prompts
+    res.json({
+      prompts: [
+        { text: 'What made you smile today?', category: 'Reflection' },
+        { text: 'Describe a moment when you felt proud of yourself.', category: 'Achievement' },
+        { text: 'What are you grateful for right now?', category: 'Gratitude' },
+        { text: 'What challenge did you overcome today?', category: 'Resilience' },
+        { text: 'How did you take care of yourself today?', category: 'Self-care' },
+      ]
+    });
+  }
+});
+
 router.get('/graph', requireAuth, async (req, res, next) => {
   const session = driver.session();
   try {

@@ -1,6 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import PageContainer from '../components/layout/PageContainer';
+import Card from '../components/ui/Card';
+import Modal from '../components/ui/Modal';
+import Skeleton from '../components/ui/Skeleton';
+import Editor from '../components/Journal/Editor';
+import MoodSelector from '../components/Journal/MoodSelector';
+import TagInput from '../components/Journal/TagInput';
+import EntryCard from '../components/Journal/EntryCard';
+import PromptPanel from '../components/Journal/PromptPanel';
+import Button from '../components/ui/Button';
+import { motion } from 'framer-motion';
 
 type JournalEntry = {
   _id: string;
@@ -9,42 +20,78 @@ type JournalEntry = {
   sentiment: string;
   emotions: string[];
   keywords: string[];
+  mood?: string;
+  tags?: string[];
 };
 
 export default function Journal() {
-  const [text, setText] = useState('');
+  const [content, setContent] = useState('');
+  const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
+  const [tags, setTags] = useState<string[]>([]);
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
+  const [showPromptPanel, setShowPromptPanel] = useState(true);
 
   const { token } = useAuth();
 
-  const fetchEntries = async () => {
+  // Autosave draft to localStorage
+  useEffect(() => {
+    const savedDraft = localStorage.getItem('journal_draft');
+    if (savedDraft) {
+      setContent(savedDraft);
+    }
+  }, []);
+
+  useEffect(() => {
+    const autosaveTimer = setInterval(() => {
+      if (content.trim()) {
+        localStorage.setItem('journal_draft', content);
+      }
+    }, 10000); // Every 10 seconds
+
+    return () => clearInterval(autosaveTimer);
+  }, [content]);
+
+  const fetchEntries = useCallback(async () => {
+    setFetching(true);
     try {
       const res = await axios.get('/journal/list', {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
       setEntries(Array.isArray(res.data) ? res.data : []);
     } catch (e) {
       console.error('Failed to fetch journal entries', e);
+    } finally {
+      setFetching(false);
     }
-  };
+  }, [token]);
 
   useEffect(() => {
     fetchEntries();
-  }, []);
+  }, [fetchEntries]);
 
   const saveEntry = async () => {
-    if (!text.trim()) return;
+    if (!content.trim()) return;
     setLoading(true);
     try {
-      const res = await axios.post('/journal/create', { content: text }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setText('');
+      await axios.post(
+        '/journal/create',
+        {
+          content,
+          mood: selectedMoods[0] || null,
+          tags: tags.length > 0 ? tags : null,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      setContent('');
+      setSelectedMoods([]);
+      setTags([]);
+      localStorage.removeItem('journal_draft');
       fetchEntries();
-      // Show success feedback
-      alert('Journal entry saved successfully!');
     } catch (e) {
       console.error('Failed to save journal entry', e);
       alert('Failed to save entry. Please try again.');
@@ -53,119 +100,239 @@ export default function Journal() {
     }
   };
 
-  const getSentimentColor = (sentiment: string) => {
-    switch (sentiment?.toLowerCase()) {
-      case 'positive': return 'text-green-600 bg-green-100';
-      case 'negative': return 'text-red-600 bg-red-100';
-      case 'neutral': return 'text-yellow-600 bg-yellow-100';
-      default: return 'text-gray-600 bg-gray-100';
-    }
+  const handlePromptSelect = (promptText: string) => {
+    setContent((prev) => (prev ? `${prev}\n\n${promptText}` : promptText));
+    setShowPromptPanel(false);
+  };
+
+  const handleMoodToggle = (mood: string) => {
+    setSelectedMoods((prev) =>
+      prev.includes(mood) ? prev.filter((m) => m !== mood) : [...prev, mood]
+    );
+  };
+
+  const exportEntry = (entry: JournalEntry) => {
+    const textContent = entry.content.replace(/<[^>]*>/g, '');
+    const exportData = {
+      date: entry.date,
+      content: textContent,
+      sentiment: entry.sentiment,
+      emotions: entry.emotions,
+      keywords: entry.keywords,
+      mood: entry.mood,
+      tags: entry.tags,
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `journal-entry-${entry.date}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold">Daily Journal</h1>
+    <PageContainer maxWidth="7xl">
+      <div className="space-y-6">
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            Daily Journal
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">
+            Reflect on your thoughts, feelings, and experiences
+          </p>
+        </motion.div>
 
-      {/* New Entry Section */}
-      <div className="rounded border bg-white dark:bg-gray-800 p-4 shadow">
-        <h2 className="text-lg font-medium mb-3">Write Your Thoughts</h2>
-        <textarea
-          className="w-full h-32 p-3 rounded border bg-transparent resize-none"
-          value={text}
-          onChange={e => setText(e.target.value)}
-          placeholder="How are you feeling today? Write about your day..."
-        />
-        <div className="mt-3 flex justify-end">
-          <button
-            className="px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-50"
-            onClick={saveEntry}
-            disabled={loading || !text.trim()}
-          >
-            {loading ? 'Saving...' : 'Save Entry'}
-          </button>
-        </div>
-      </div>
-
-      {/* Past Entries Section */}
-      <div className="rounded border bg-white dark:bg-gray-800 p-4 shadow">
-        <h2 className="text-lg font-medium mb-3">Your Journal Entries</h2>
-        {entries.length === 0 ? (
-          <p className="text-gray-500">No journal entries yet. Start writing to see your entries here.</p>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2">
-            {entries.map((entry) => (
-              <div
-                key={entry._id}
-                className="p-4 rounded border cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => setSelectedEntry(entry)}
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <span className="text-sm text-gray-500">
-                    {new Date(entry.date).toLocaleDateString('en-US', {
-                      weekday: 'short',
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric'
-                    })}
-                  </span>
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${getSentimentColor(entry.sentiment)}`}>
-                    {entry.sentiment || 'Unknown'}
-                  </span>
-                </div>
-                <p className="text-sm line-clamp-3">{entry.content}</p>
-                {entry.emotions.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {entry.emotions.slice(0, 3).map((emotion, i) => (
-                      <span key={i} className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">
-                        {emotion}
-                      </span>
-                    ))}
-                  </div>
+        <div className="grid lg:grid-cols-3 gap-6">
+          {/* Left Column: Editor */}
+          <div className="lg:col-span-2 space-y-6">
+            <Card>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  Write Your Thoughts
+                </h2>
+                {showPromptPanel && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowPromptPanel(!showPromptPanel)}
+                  >
+                    Hide Prompts
+                  </Button>
                 )}
               </div>
-            ))}
+
+              {showPromptPanel && (
+                <div className="mb-4">
+                  <PromptPanel tags={tags} onSelectPrompt={handlePromptSelect} />
+                </div>
+              )}
+
+              <Editor
+                content={content}
+                onChange={setContent}
+                onSave={saveEntry}
+                isLoading={loading}
+              />
+
+              <div className="mt-4 space-y-4">
+                <MoodSelector selectedMoods={selectedMoods} onMoodToggle={handleMoodToggle} />
+                <TagInput tags={tags} onTagsChange={setTags} />
+              </div>
+            </Card>
           </div>
-        )}
+
+          {/* Right Column: Quick Actions */}
+          <div className="space-y-6">
+            <Card>
+              <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+                Quick Actions
+              </h3>
+              <div className="space-y-2">
+                <Button
+                  variant="primary"
+                  className="w-full"
+                  onClick={() => {
+                    setContent('');
+                    setSelectedMoods([]);
+                    setTags([]);
+                  }}
+                >
+                  New Entry
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => (window.location.href = '/time-travel')}
+                >
+                  Time Travel
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    // Export all entries
+                    const blob = new Blob([JSON.stringify(entries, null, 2)], {
+                      type: 'application/json',
+                    });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `journal-export-${new Date().toISOString().split('T')[0]}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                  }}
+                >
+                  Export All
+                </Button>
+              </div>
+            </Card>
+          </div>
+        </div>
+
+        {/* Entry Timeline */}
+        <div>
+          <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-white">
+            Your Journal Entries
+          </h2>
+          {fetching ? (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[...Array(6)].map((_, i) => (
+                <Card key={i}>
+                  <Skeleton variant="text" width="60%" height={20} />
+                  <Skeleton variant="rectangular" height={100} className="mt-2" />
+                </Card>
+              ))}
+            </div>
+          ) : entries.length === 0 ? (
+            <Card>
+              <div className="text-center py-12">
+                <div className="text-6xl mb-4">📝</div>
+                <p className="text-gray-500 dark:text-gray-400">
+                  No journal entries yet. Start writing to see your entries here.
+                </p>
+              </div>
+            </Card>
+          ) : (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {entries.map((entry) => (
+                <EntryCard
+                  key={entry._id}
+                  entry={entry}
+                  onSelect={() => setSelectedEntry(entry)}
+                  onExport={() => exportEntry(entry)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Entry Detail Modal */}
       {selectedEntry && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-            <div className="flex justify-between items-start mb-4">
-              <h3 className="text-xl font-semibold">
-                {new Date(selectedEntry.date).toLocaleDateString('en-US', {
-                  weekday: 'long',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })}
-              </h3>
-              <button
-                className="text-gray-500 hover:text-gray-700"
-                onClick={() => setSelectedEntry(null)}
-              >
-                ✕
-              </button>
-            </div>
+        <Modal
+          isOpen={!!selectedEntry}
+          onClose={() => setSelectedEntry(null)}
+          title={new Date(selectedEntry.date).toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })}
+          size="lg"
+        >
+          <div className="space-y-4">
+            <div
+              className="prose dark:prose-invert max-w-none"
+              dangerouslySetInnerHTML={{ __html: selectedEntry.content }}
+            />
 
-            <div className="mb-4">
-              <span className={`px-3 py-1 rounded font-medium ${getSentimentColor(selectedEntry.sentiment)}`}>
-                Sentiment: {selectedEntry.sentiment || 'Unknown'}
+            <div className="flex flex-wrap gap-2">
+              <span className="px-3 py-1 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 text-sm font-medium">
+                {selectedEntry.sentiment || 'Unknown'}
               </span>
-            </div>
-
-            <div className="mb-4">
-              <p className="whitespace-pre-wrap">{selectedEntry.content}</p>
+              {selectedEntry.mood && (
+                <span className="px-3 py-1 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 text-sm font-medium">
+                  {selectedEntry.mood}
+                </span>
+              )}
             </div>
 
             {selectedEntry.emotions.length > 0 && (
-              <div className="mb-4">
-                <h4 className="font-medium mb-2">Emotions Detected:</h4>
+              <div>
+                <h4 className="font-medium mb-2 text-gray-900 dark:text-white">Emotions:</h4>
                 <div className="flex flex-wrap gap-2">
                   {selectedEntry.emotions.map((emotion, i) => (
-                    <span key={i} className="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded">
+                    <span
+                      key={i}
+                      className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded-lg text-sm"
+                    >
                       {emotion}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {selectedEntry.tags && selectedEntry.tags.length > 0 && (
+              <div>
+                <h4 className="font-medium mb-2 text-gray-900 dark:text-white">Tags:</h4>
+                <div className="flex flex-wrap gap-2">
+                  {selectedEntry.tags.map((tag, i) => (
+                    <span
+                      key={i}
+                      className="px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 rounded-lg text-sm"
+                    >
+                      #{tag}
                     </span>
                   ))}
                 </div>
@@ -174,21 +341,29 @@ export default function Journal() {
 
             {selectedEntry.keywords.length > 0 && (
               <div>
-                <h4 className="font-medium mb-2">Key Topics:</h4>
+                <h4 className="font-medium mb-2 text-gray-900 dark:text-white">Key Topics:</h4>
                 <div className="flex flex-wrap gap-2">
                   {selectedEntry.keywords.map((keyword, i) => (
-                    <span key={i} className="px-3 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded">
+                    <span
+                      key={i}
+                      className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 rounded-lg text-sm"
+                    >
                       {keyword}
                     </span>
                   ))}
                 </div>
               </div>
             )}
+
+            <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <Button variant="outline" onClick={() => exportEntry(selectedEntry)}>
+                Export
+              </Button>
+              <Button onClick={() => setSelectedEntry(null)}>Close</Button>
+            </div>
           </div>
-        </div>
+        </Modal>
       )}
-    </div>
+    </PageContainer>
   );
 }
-
-

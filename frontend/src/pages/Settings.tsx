@@ -337,6 +337,34 @@ export default function Settings() {
               <hr className="border-gray-200 dark:border-gray-700" />
 
               <div>
+                <h3 className="font-medium mb-2">Demo Mode</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                  Load demo data (journal entries, habits, insights) for presentation purposes. This will add sample data to your account.
+                </p>
+                <button
+                  onClick={async () => {
+                    if (confirm('This will add demo data to your account. Continue?')) {
+                      try {
+                        await axios.post('/settings/load-demo', {}, {
+                          headers: { Authorization: `Bearer ${token}` }
+                        });
+                        alert('Demo data loaded successfully! Refresh the page to see it.');
+                        window.location.reload();
+                      } catch (e) {
+                        console.error('Failed to load demo data', e);
+                        alert('Failed to load demo data. Please try again.');
+                      }
+                    }
+                  }}
+                  className="px-4 py-2 bg-purple-600 text-white rounded font-medium hover:bg-purple-700"
+                >
+                  Load Demo Data
+                </button>
+              </div>
+
+              <hr className="border-gray-200 dark:border-gray-700" />
+
+              <div>
                 <h3 className="font-medium mb-2 text-red-600 dark:text-red-400">Delete All Data</h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
                   Permanently delete all your journal entries, chat conversations, and reset your account to defaults.

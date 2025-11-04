@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import bcrypt from 'bcrypt';
 import User from './models/User.js';
 import JournalLog from './models/JournalLog.js';
+import Habit from './models/Habit.js';
 
 dotenv.config();
 
@@ -53,7 +54,50 @@ async function run() {
   ];
 
   await JournalLog.insertMany(entries);
-  console.log('Seeded demo user and journals.');
+  
+  // Add demo habits
+  const habits = [
+    {
+      userId: user._id,
+      name: 'Morning Meditation',
+      description: '10 minutes of mindfulness meditation',
+      streak: 5,
+      longestStreak: 7,
+      completedDates: [
+        new Date(),
+        new Date(Date.now() - 86400000),
+        new Date(Date.now() - 2 * 86400000),
+        new Date(Date.now() - 3 * 86400000),
+        new Date(Date.now() - 4 * 86400000),
+      ],
+    },
+    {
+      userId: user._id,
+      name: 'Daily Journaling',
+      description: 'Write at least one journal entry per day',
+      streak: 3,
+      longestStreak: 10,
+      completedDates: [
+        new Date(),
+        new Date(Date.now() - 86400000),
+        new Date(Date.now() - 2 * 86400000),
+      ],
+    },
+    {
+      userId: user._id,
+      name: 'Evening Walk',
+      description: '30-minute walk in the evening',
+      streak: 2,
+      longestStreak: 5,
+      completedDates: [
+        new Date(),
+        new Date(Date.now() - 86400000),
+      ],
+    },
+  ];
+  
+  await Habit.insertMany(habits);
+  console.log('Seeded demo user, journals, and habits.');
   await mongoose.disconnect();
 }
 

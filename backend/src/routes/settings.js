@@ -1,83 +1,196 @@
 import { Router } from 'express';
-import { requireAuth } from '../middleware/auth.js';
 import User from '../models/User.js';
 import JournalLog from '../models/JournalLog.js';
 import ChatLog from '../models/ChatLog.js';
-import axios from 'axios';
+import Habit from '../models/Habit.js';
+import { requireAuth } from '../middleware/auth.js';
+import bcrypt from 'bcrypt';
 
 const router = Router();
 
 // Get user settings
 router.get('/', requireAuth, async (req, res, next) => {
   try {
-    const user = await User.findById(req.userId).select('persona privacySettings theme email username createdAt');
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    // Get usage statistics
-    const journalCount = await JournalLog.countDocuments({ userId: req.userId });
-    const chatCount = await ChatLog.countDocuments({ userId: req.userId });
-    const firstEntry = await JournalLog.findOne({ userId: req.userId }).sort({ createdAt: 1 });
-
-    res.json({
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        persona: user.persona,
-        privacySettings: user.privacySettings,
-        theme: user.theme,
-        joinedAt: user.createdAt
-      },
-      stats: {
-        journalEntries: journalCount,
-        chatConversations: chatCount,
-        daysActive: firstEntry ? Math.ceil((Date.now() - firstEntry.createdAt.getTime()) / (1000 * 60 * 60 * 24)) : 0
-      }
-    });
-  } catch (e) { next(e); }
+    const user = await User.findById(req.userId).select('-passwordHash');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({ user });
+  } catch (e) {
+    next(e);
+  }
 });
 
 // Update user settings
 router.post('/update', requireAuth, async (req, res, next) => {
   try {
     const { persona, privacySettings, theme } = req.body;
-    const user = await User.findByIdAndUpdate(
-      req.userId,
-      { $set: { ...(persona && { persona }), ...(privacySettings && { privacySettings }), ...(theme && { theme }) } },
-      { new: true }
-    );
-    res.json({ id: user._id, persona: user.persona, privacySettings: user.privacySettings, theme: user.theme });
-  } catch (e) { next(e); }
+    const updateData = {};
+    if (persona) updateData.persona = persona;
+    if (privacySettings) updateData.privacySettings = privacySettings;
+    if (theme) updateData.theme = theme;
+
+    const user = await User.findByIdAndUpdate(req.userId, { $set: updateData }, { new: true }).select('-passwordHash');
+    res.json({ user });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Get user insights/stats
+router.get('/insights', requireAuth, async (req, res, next) => {
+  try {
+    const journalCount = await JournalLog.countDocuments({ userId: req.userId });
+    const chatCount = await ChatLog.countDocuments({ userId: req.userId });
+    const habitCount = await Habit.countDocuments({ userId: req.userId });
+
+    const recentEntries = await JournalLog.find({ userId: req.userId })
+      .sort({ date: -1 })
+      .limit(5);
+
+    res.json({
+      journalCount,
+      chatCount,
+      habitCount,
+      recentEntries,
+    });
+  } catch (e) {
+    next(e);
+  }
 });
 
 // Export user data
 router.get('/export', requireAuth, async (req, res, next) => {
   try {
-    const journals = await JournalLog.find({ userId: req.userId }).sort({ date: -1 });
-    const chats = await ChatLog.find({ userId: req.userId }).sort({ updatedAt: -1 });
+    const journals = await JournalLog.find({ userId: req.userId });
+    const chats = await ChatLog.find({ userId: req.userId });
+    const habits = await Habit.find({ userId: req.userId });
+    const user = await User.findById(req.userId).select('-passwordHash');
 
     const exportData = {
-      exportDate: new Date().toISOString(),
-      userId: req.userId,
-      journals: journals.map(j => ({
-        date: j.date,
-        content: j.content,
-        sentiment: j.sentiment,
-        emotions: j.emotions,
-        keywords: j.keywords
-      })),
-      chats: chats.map(c => ({
-        persona: c.persona,
-        messages: c.messages,
-        createdAt: c.createdAt,
-        updatedAt: c.updatedAt
-      }))
+      user,
+      journals,
+      chats,
+      habits,
+      exportedAt: new Date().toISOString(),
     };
 
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', `attachment; filename="memoir-data-${new Date().toISOString().split('T')[0]}.json"`);
     res.json(exportData);
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Load demo data
+router.post('/load-demo', requireAuth, async (req, res, next) => {
+  try {
+    const userId = req.userId;
+
+    // Add demo journal entries
+    const demoEntries = [
+      {
+        userId,
+        date: new Date(),
+        content: 'Felt calm after a long walk. Coffee with a friend lifted my mood. The weather was perfect today.',
+        sentiment: 'Positive',
+        emotions: ['Joy', 'Calm'],
+        keywords: ['calm', 'walk', 'coffee', 'friend', 'mood', 'weather'],
+        mood: 'happy',
+        tags: ['friends', 'outdoor'],
+      },
+      {
+        userId,
+        date: new Date(Date.now() - 86400000),
+        content: 'Anxious about looming deadline at work but completed key tasks. Feeling more in control now.',
+        sentiment: 'Neutral',
+        emotions: ['Anxiety', 'Relief'],
+        keywords: ['anxious', 'deadline', 'work', 'tasks', 'control'],
+        mood: 'anxious',
+        tags: ['work', 'stress'],
+      },
+      {
+        userId,
+        date: new Date(Date.now() - 2 * 86400000),
+        content: 'Tired, but journaling helped me process my day. Grateful for small moments of peace.',
+        sentiment: 'Positive',
+        emotions: ['Calm', 'Gratitude'],
+        keywords: ['tired', 'journaling', 'process', 'grateful', 'peace'],
+        mood: 'calm',
+        tags: ['gratitude', 'self-care'],
+      },
+      {
+        userId,
+        date: new Date(Date.now() - 3 * 86400000),
+        content: 'Had a productive day. Finished a project I\'ve been working on. Feeling accomplished!',
+        sentiment: 'Positive',
+        emotions: ['Joy', 'Pride'],
+        keywords: ['productive', 'project', 'accomplished'],
+        mood: 'confident',
+        tags: ['achievement', 'work'],
+      },
+      {
+        userId,
+        date: new Date(Date.now() - 4 * 86400000),
+        content: 'Struggled with focus today. Took breaks and managed to get through the day.',
+        sentiment: 'Neutral',
+        emotions: ['Tired'],
+        keywords: ['struggled', 'focus', 'breaks'],
+        mood: 'tired',
+        tags: ['challenge'],
+      },
+    ];
+
+    await JournalLog.insertMany(demoEntries);
+
+    // Add demo habits
+    const demoHabits = [
+      {
+        userId,
+        name: 'Morning Meditation',
+        description: '10 minutes of mindfulness meditation',
+        streak: 5,
+        longestStreak: 7,
+        completedDates: [
+          new Date(),
+          new Date(Date.now() - 86400000),
+          new Date(Date.now() - 2 * 86400000),
+          new Date(Date.now() - 3 * 86400000),
+          new Date(Date.now() - 4 * 86400000),
+        ],
+      },
+      {
+        userId,
+        name: 'Daily Journaling',
+        description: 'Write at least one journal entry per day',
+        streak: 3,
+        longestStreak: 10,
+        completedDates: [
+          new Date(),
+          new Date(Date.now() - 86400000),
+          new Date(Date.now() - 2 * 86400000),
+        ],
+      },
+      {
+        userId,
+        name: 'Evening Walk',
+        description: '30-minute walk in the evening',
+        streak: 2,
+        longestStreak: 5,
+        completedDates: [
+          new Date(),
+          new Date(Date.now() - 86400000),
+        ],
+      },
+    ];
+
+    await Habit.insertMany(demoHabits);
+
+    res.json({ message: 'Demo data loaded successfully', entries: demoEntries.length, habits: demoHabits.length });
+  } catch (e) {
+    next(e);
+  }
 });
 
 // Delete all user data
@@ -91,6 +204,7 @@ router.delete('/data', requireAuth, async (req, res, next) => {
     // Delete all user data
     await JournalLog.deleteMany({ userId: req.userId });
     await ChatLog.deleteMany({ userId: req.userId });
+    await Habit.deleteMany({ userId: req.userId });
 
     // Reset user settings to defaults
     await User.findByIdAndUpdate(req.userId, {
@@ -109,84 +223,24 @@ router.delete('/data', requireAuth, async (req, res, next) => {
 router.post('/change-password', requireAuth, async (req, res, next) => {
   try {
     const { currentPassword, newPassword } = req.body;
-
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ error: 'Current password and new password are required.' });
-    }
-
-    if (newPassword.length < 6) {
-      return res.status(400).json({ error: 'New password must be at least 6 characters long.' });
-    }
-
     const user = await User.findById(req.userId);
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    // Verify current password (you'd typically use bcrypt.compare here)
-    // For now, we'll assume it's handled on the frontend or add proper validation
-
-    // Update password hash (you'd typically hash the new password)
-    // user.passwordHash = await bcrypt.hash(newPassword, 10);
-    // await user.save();
-
-    res.json({ message: 'Password updated successfully.' });
-  } catch (e) { next(e); }
-});
-
-// Get data insights for settings page
-router.get('/insights', requireAuth, async (req, res, next) => {
-  try {
-    const journals = await JournalLog.find({ userId: req.userId });
-    const chats = await ChatLog.find({ userId: req.userId });
-
-    const insights = {
-      totalJournals: journals.length,
-      totalChats: chats.length,
-      avgSentiment: journals.length > 0 ?
-        journals.reduce((sum, j) => {
-          if (j.sentiment === 'positive') return sum + 1;
-          if (j.sentiment === 'negative') return sum - 1;
-          return sum;
-        }, 0) / journals.length : 0,
-      mostUsedPersona: chats.length > 0 ?
-        Object.entries(
-          chats.reduce((acc, chat) => {
-            acc[chat.persona] = (acc[chat.persona] || 0) + 1;
-            return acc;
-          }, {})
-        ).sort(([,a], [,b]) => b - a)[0][0] : 'mentor',
-      streakData: calculateStreak(journals)
-    };
-
-    res.json(insights);
-  } catch (e) { next(e); }
-});
-
-function calculateStreak(journals) {
-  if (journals.length === 0) return { current: 0, longest: 0 };
-
-  const sortedDates = [...new Set(journals.map(j => j.date.toISOString().split('T')[0]))].sort();
-  let currentStreak = 0;
-  let longestStreak = 0;
-  let tempStreak = 0;
-
-  for (let i = sortedDates.length - 1; i >= 0; i--) {
-    const date = new Date(sortedDates[i]);
-    const nextDate = i > 0 ? new Date(sortedDates[i - 1]) : null;
-
-    if (!nextDate || (date.getTime() - nextDate.getTime()) <= (24 * 60 * 60 * 1000)) {
-      tempStreak++;
-      if (i === sortedDates.length - 1) currentStreak = tempStreak;
-    } else {
-      longestStreak = Math.max(longestStreak, tempStreak);
-      tempStreak = 1;
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
     }
-  }
 
-  longestStreak = Math.max(longestStreak, tempStreak);
-  return { current: currentStreak, longest: longestStreak };
-}
+    const isValid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isValid) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    const newPasswordHash = await bcrypt.hash(newPassword, 10);
+    await User.findByIdAndUpdate(req.userId, { passwordHash: newPasswordHash });
+
+    res.json({ message: 'Password changed successfully' });
+  } catch (e) {
+    next(e);
+  }
+});
 
 export default router;
-
-
-

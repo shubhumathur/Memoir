@@ -8,6 +8,8 @@ const JournalLogSchema = new mongoose.Schema(
     sentiment: { type: String },
     emotions: { type: [String], default: [] },
     keywords: { type: [String], default: [] },
+    mood: { type: String },
+    tags: { type: [String], default: [] },
   },
   { timestamps: true }
 );

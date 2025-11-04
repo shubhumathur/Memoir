@@ -1,13 +1,17 @@
-import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
-import { clsx } from 'clsx';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
+import Header from '../components/layout/Header';
+import Sidebar from '../components/layout/Sidebar';
+import OnboardingModal from '../components/OnboardingModal';
 
 export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout, isLoading } = useAuth();
-  const [dark, setDark] = useState(false);
+  const { user, isLoading } = useAuth();
+  const { isDark, toggleTheme } = useTheme();
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const isAuthed = location.pathname !== '/' && location.pathname !== '/login' && location.pathname !== '/signup';
 
@@ -17,42 +21,26 @@ export default function App() {
     }
   }, [user, isLoading, isAuthed, navigate]);
 
+  useEffect(() => {
+    if (user && isAuthed) {
+      const hasCompletedOnboarding = localStorage.getItem('memoir_onboarding_completed');
+      if (!hasCompletedOnboarding) {
+        setShowOnboarding(true);
+      }
+    }
+  }, [user, isAuthed]);
+
   return (
-    <div className={clsx('min-h-screen', dark && 'dark')}> 
-      <div className="flex min-h-screen">
-        {isAuthed && (
-          <aside className="w-64 hidden md:flex flex-col gap-2 bg-white/60 dark:bg-gray-800/60 backdrop-blur p-4 border-r border-gray-200 dark:border-gray-700">
-            <h2 className="text-xl font-semibold">JournAI</h2>
-            <nav className="flex flex-col gap-1">
-              <NavItem to="/dashboard" label="Home" />
-              <NavItem to="/journal" label="Journal" />
-              <NavItem to="/chat" label="Chat" />
-              <NavItem to="/insights" label="Insights" />
-              <NavItem to="/time-travel" label="Time Travel" />
-              <NavItem to="/settings" label="Settings" />
-              <button className="text-left px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => { logout(); navigate('/'); }}>Logout</button>
-            </nav>
-            <div className="mt-auto">
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={dark} onChange={() => setDark(!dark)} />
-                Dark mode
-              </label>
-            </div>
-          </aside>
-        )}
-        <main className="flex-1">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {isAuthed && <Header onThemeToggle={toggleTheme} isDark={isDark} />}
+      <div className="flex min-h-screen pt-16">
+        {isAuthed && <Sidebar />}
+        <main className="flex-1 overflow-x-hidden">
           <Outlet />
         </main>
       </div>
+      <OnboardingModal isOpen={showOnboarding} onClose={() => setShowOnboarding(false)} />
     </div>
-  );
-}
-
-function NavItem({ to, label }: { to: string; label: string }) {
-  const location = useLocation();
-  const active = location.pathname === to;
-  return (
-    <Link to={to} className={clsx('px-3 py-2 rounded', active ? 'bg-blue-600 text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-700')}> {label} </Link>
   );
 }
 

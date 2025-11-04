@@ -12,6 +12,7 @@ export default defineConfig({
       '/sentiment': 'http://localhost:4000',
       '/insights': 'http://localhost:4000',
       '/settings': 'http://localhost:4000',
+      '/habits': 'http://localhost:4000',
     },
   },
 });
