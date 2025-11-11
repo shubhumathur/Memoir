@@ -74,7 +74,8 @@ export default function Chat() {
       const res = await axios.post('/insights/summary', { journals: userMessages }, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      alert(`Chat Summary: ${res.data.summary}`);
+      const text = res.data?.aiSummary || res.data?.summary || 'No summary available.';
+      alert(`Chat Summary: ${text}`);
     } catch (e) {
       console.error('Failed to summarize', e);
       alert('Failed to generate summary. Please try again.');

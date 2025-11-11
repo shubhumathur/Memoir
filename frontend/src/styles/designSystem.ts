@@ -5,52 +5,34 @@
 
 export const designSystem = {
   colors: {
-    primary: {
-      50: '#eff6ff',
-      100: '#dbeafe',
-      200: '#bfdbfe',
-      300: '#93c5fd',
-      400: '#60a5fa',
-      500: '#3b82f6',
-      600: '#2563eb',
-      700: '#1d4ed8',
-      800: '#1e40af',
-      900: '#1e3a8a',
-    },
-    secondary: {
-      50: '#faf5ff',
-      100: '#f3e8ff',
-      200: '#e9d5ff',
-      300: '#d8b4fe',
-      400: '#c084fc',
-      500: '#a855f7',
-      600: '#9333ea',
-      700: '#7e22ce',
-      800: '#6b21a8',
-      900: '#581c87',
+    // Warm, human-centered palette
+    brand: {
+      primary: '#1F7A73', // teal
+      secondary: '#F4E9D8', // sand
+      accent: '#EE6C63', // muted coral
     },
     neutral: {
-      50: '#f9fafb',
-      100: '#f3f4f6',
-      200: '#e5e7eb',
-      300: '#d1d5db',
-      400: '#9ca3af',
-      500: '#6b7280',
-      600: '#4b5563',
-      700: '#374151',
-      800: '#1f2937',
-      900: '#111827',
+      50: '#F8FAFB',
+      100: '#F1F5F9',
+      200: '#E2E8F0',
+      300: '#CBD5E1',
+      400: '#94A3B8',
+      500: '#64748B',
+      600: '#475569',
+      700: '#334155',
+      800: '#1F2937',
+      900: '#0F1724',
     },
     accent: {
-      success: '#10b981',
-      warning: '#f59e0b',
-      error: '#ef4444',
-      info: '#3b82f6',
+      success: '#2BAF74',
+      warning: '#F59E0B',
+      error: '#EF4444',
+      info: '#1F7A73',
     },
     sentiment: {
-      positive: '#10b981',
-      negative: '#ef4444',
-      neutral: '#f59e0b',
+      positive: '#2BAF74',
+      negative: '#EF4444',
+      neutral: '#F59E0B',
     },
   },
   typography: {
@@ -60,15 +42,15 @@ export const designSystem = {
       mono: ['Fira Code', 'monospace'],
     },
     fontSize: {
-      xs: '0.75rem',    // 12px
-      sm: '0.875rem',   // 14px
-      base: '1rem',     // 16px
-      lg: '1.125rem',   // 18px
-      xl: '1.25rem',    // 20px
-      '2xl': '1.5rem',  // 24px
-      '3xl': '1.875rem', // 30px
-      '4xl': '2.25rem', // 36px
-      '5xl': '3rem',    // 48px
+      xs: '0.75rem',
+      sm: '0.875rem',
+      base: '1rem',
+      lg: '1.125rem',
+      xl: '1.25rem',
+      '2xl': '1.5rem',
+      '3xl': '1.875rem',
+      '4xl': '2.25rem',
+      '5xl': '3rem',
     },
     fontWeight: {
       normal: 400,
@@ -83,22 +65,22 @@ export const designSystem = {
     },
   },
   spacing: {
-    xs: '0.25rem',   // 4px
-    sm: '0.5rem',    // 8px
-    md: '1rem',      // 16px
-    lg: '1.5rem',    // 24px
-    xl: '2rem',      // 32px
-    '2xl': '3rem',   // 48px
-    '3xl': '4rem',   // 64px
-    '4xl': '6rem',   // 96px
+    xs: '0.25rem',
+    sm: '0.5rem',
+    md: '1rem',
+    lg: '1.5rem',
+    xl: '2rem',
+    '2xl': '3rem',
+    '3xl': '4rem',
+    '4xl': '6rem',
   },
   borderRadius: {
     none: '0',
-    sm: '0.25rem',   // 4px
-    md: '0.5rem',    // 8px
-    lg: '0.75rem',   // 12px
-    xl: '1rem',      // 16px
-    '2xl': '1.5rem', // 24px
+    sm: '0.25rem',
+    md: '0.5rem',
+    lg: '0.75rem',
+    xl: '1rem',
+    '2xl': '1.5rem',
     full: '9999px',
   },
   shadows: {
@@ -125,16 +107,15 @@ export const designSystem = {
   },
 } as const;
 
-// Helper function to get CSS variable values
 export const getColor = (path: string): string => {
   const keys = path.split('.');
-  let value: any = designSystem.colors;
+  // Allow reading from brand.primary etc.
+  let value: any = designSystem.colors as any;
   for (const key of keys) {
     value = value?.[key];
   }
   return value || '#000';
 };
 
-// Export type for TypeScript
 export type DesignSystem = typeof designSystem;
 

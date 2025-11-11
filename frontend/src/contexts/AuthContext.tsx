@@ -39,8 +39,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const storedToken = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
     if (storedToken && storedUser) {
-      setToken(storedToken);
-      setUser(JSON.parse(storedUser));
+      try {
+        // Verify token is still valid format
+        const parts = storedToken.split('.');
+        if (parts.length === 3) {
+          setToken(storedToken);
+          setUser(JSON.parse(storedUser));
+        } else {
+          // Invalid token format, clear it
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+        }
+      } catch (e) {
+        // Invalid user data, clear it
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
     }
     setIsLoading(false);
   }, []);

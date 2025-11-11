@@ -23,8 +23,10 @@ export default function Settings() {
   const [newPassword, setNewPassword] = useState('');
 
   useEffect(() => {
-    loadSettings();
-  }, []);
+    if (token) {
+      loadSettings();
+    }
+  }, [token]);
 
   const loadSettings = async () => {
     try {
@@ -33,15 +35,19 @@ export default function Settings() {
         axios.get('/settings/insights', { headers: { Authorization: `Bearer ${token}` } })
       ]);
 
-      setSettings(settingsRes.data);
-      setInsights(insightsRes.data);
+      setSettings(settingsRes.data || {});
+      setInsights(insightsRes.data || {});
 
-      // Set form values
-      setPersona(settingsRes.data.user.persona);
-      setPrivacyLocal(settingsRes.data.user.privacySettings?.localOnly || false);
-      setTheme(settingsRes.data.user.theme);
-    } catch (e) {
+      const user = (settingsRes.data && settingsRes.data.user) || {};
+      // Set form values with safe fallbacks
+      setPersona(user.persona || 'mentor');
+      setPrivacyLocal(!!(user.privacySettings && user.privacySettings.localOnly));
+      setTheme((user.theme as 'light'|'dark') || 'light');
+    } catch (e: any) {
       console.error('Failed to load settings', e);
+      // Graceful fallbacks
+      setSettings({ user: {} });
+      setInsights({});
     } finally {
       setLoading(false);
     }
@@ -184,25 +190,25 @@ export default function Settings() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Username</label>
                 <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700 rounded border text-gray-900 dark:text-white">
-                  {settings?.user.username}
+                  {settings?.user?.username || '—'}
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
                 <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700 rounded border text-gray-900 dark:text-white">
-                  {settings?.user.email}
+                  {settings?.user?.email || '—'}
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Member Since</label>
                 <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700 rounded border text-gray-900 dark:text-white">
-                  {settings?.user.joinedAt ? new Date(settings.user.joinedAt).toLocaleDateString() : 'N/A'}
+                  {settings?.user?.joinedAt ? new Date(settings.user.joinedAt).toLocaleDateString() : 'N/A'}
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Days Active</label>
                 <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700 rounded border text-gray-900 dark:text-white">
-                  {settings?.stats.daysActive || 0}
+                  {settings?.stats?.daysActive || 0}
                 </div>
               </div>
             </div>

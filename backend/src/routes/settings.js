@@ -243,4 +243,20 @@ router.post('/change-password', requireAuth, async (req, res, next) => {
   }
 });
 
+// Save onboarding profile
+router.post('/onboarding', requireAuth, async (req, res, next) => {
+  try {
+    const { onboarding } = req.body;
+    if (!onboarding || typeof onboarding !== 'object') {
+      return res.status(400).json({ error: 'Invalid onboarding payload' });
+    }
+    const user = await User.findByIdAndUpdate(
+      req.userId,
+      { $set: { onboarding } },
+      { new: true }
+    ).select('-passwordHash');
+    res.json({ user });
+  } catch (e) { next(e); }
+});
+
 export default router;

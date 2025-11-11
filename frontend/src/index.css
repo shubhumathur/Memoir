@@ -2,8 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --color-primary: #2563eb; /* blue-600 */
+  --color-secondary: #f8fafc; /* slate-50 */
+  --color-accent: #f97316; /* orange-500 */
+  --color-neutral-900: #0f172a; /* slate-900 */
+  --color-neutral-100: #ffffff; /* white */
+}
+
 html, body, #root { height: 100%; }
-body { @apply bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100; }
+body { background: var(--color-neutral-100); color: var(--color-neutral-900); }
+
+.dark body { background: #0b1220; color: #e5e7eb; }
+
+/* Soft radial hero background utility (lighter, appealing) */
+.bg-hero-soft {
+  background: radial-gradient(1200px 600px at 0% 0%, rgba(37,99,235,0.10), transparent 60%),
+              radial-gradient(800px 400px at 100% 20%, rgba(248,250,252,0.7), transparent 60%);
+}
 
 /* Accessibility: Reduced motion support */
 @media (prefers-reduced-motion: reduce) {
@@ -19,14 +35,14 @@ body { @apply bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100; }
 
 /* Focus styles for accessibility */
 *:focus-visible {
-  outline: 2px solid #3b82f6;
+  outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
 
 /* Ensure sufficient contrast */
 button:focus-visible,
 a:focus-visible {
-  outline: 2px solid #3b82f6;
+  outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
 

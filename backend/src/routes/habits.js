@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import Habit from '../models/Habit.js';
 import { requireAuth } from '../middleware/auth.js';
+import User from '../models/User.js';
 
 const router = Router();
 
@@ -17,13 +18,49 @@ router.get('/', requireAuth, async (req, res, next) => {
 // Create a new habit
 router.post('/', requireAuth, async (req, res, next) => {
   try {
-    const { name, description } = req.body;
+    const { name, description, frequency = 'daily', reminderTime, autoAdded = false } = req.body;
     const habit = await Habit.create({
       userId: req.userId,
       name,
       description,
+      streak: 0,
+      longestStreak: 0,
+      completedDates: [],
+      frequency,
+      reminderTime,
+      autoAdded,
     });
     res.json(habit);
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Autogenerate habits from onboarding
+router.post('/autogenerate', requireAuth, async (req, res, next) => {
+  try {
+    const onboarding = req.body?.onboarding || (await User.findById(req.userId))?.onboarding || {};
+
+    const habits = [];
+    const push = (title, description, reminderTime = '20:00') =>
+      habits.push({ name: title, description, frequency: 'daily', reminderTime, autoAdded: true });
+
+    const sleepHours = Number(onboarding.sleepHours || 0);
+    const activityLevel = String(onboarding.activityLevel || '').toLowerCase();
+    const hobbies = Array.isArray(onboarding.hobbies) ? onboarding.hobbies : [];
+    const stressLevel = Number(onboarding.stressLevel || 0);
+    const preferredTime = onboarding.preferredTime || '21:00';
+
+    if (sleepHours && sleepHours < 6) push('Wind-down routine', 'No screens 30 min before bed', '22:00');
+    if (activityLevel === 'sedentary') push('Short walk', '10-minute walk post-lunch', '16:00');
+    if (hobbies.map(h => h.toLowerCase()).includes('reading')) push('Reading', 'Read 20 minutes', '21:00');
+    if (stressLevel >= 4) push('Breathing exercise', '5-minute guided breathing', preferredTime);
+    // Baseline
+    if (habits.length < 3) push('Daily journaling', 'Write for 5 minutes', '20:00');
+
+    // Save
+    const created = await Habit.insertMany(habits.map(h => ({ ...h, userId: req.userId })));
+    res.json({ habits: created });
   } catch (e) {
     next(e);
   }

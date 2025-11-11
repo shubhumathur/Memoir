@@ -16,36 +16,51 @@ router.post('/summary', requireAuth, async (req, res, next) => {
   try {
     const { journals, start, end } = req.body;
 
-    // If no journals provided, fetch from database based on date range
-    let journalEntries = journals;
+    // Normalize journal entries
+    let journalEntries = Array.isArray(journals) ? journals : [];
+
+    // If client provided an array of strings (e.g., chat messages), wrap them into objects
+    journalEntries = journalEntries.map((entry) => {
+      if (typeof entry === 'string') {
+        return {
+          content: entry,
+          date: new Date(),
+          emotions: [],
+          keywords: [],
+          sentiment: null,
+        };
+      }
+      return entry;
+    });
+
     let analysisData = {};
 
-    if (!journals || journals.length === 0) {
-      const startDate = new Date(start);
-      const endDate = new Date(end);
+    if (journalEntries.length === 0) {
+      // Fetch from database based on date range
+      const startDate = start ? new Date(start) : new Date(Date.now() - 30 * 86400000);
+      const endDate = end ? new Date(end) : new Date();
 
-      journalEntries = await JournalLog.find({
+      const dbEntries = await JournalLog.find({
         userId: req.userId,
         date: { $gte: startDate, $lte: endDate }
       }).sort({ date: 1 });
 
-      // Analyze the period
+      journalEntries = dbEntries;
+    }
+
+    // Build analysisData if missing
+    if (!analysisData || !analysisData.totalEntries) {
       const emotions = {};
       const keywords = {};
       const sentiments = { positive: 0, negative: 0, neutral: 0 };
 
-      journalEntries.forEach(entry => {
-        // Count emotions
-        entry.emotions.forEach(emotion => {
+      journalEntries.forEach((entry) => {
+        (entry.emotions || []).forEach((emotion) => {
           emotions[emotion] = (emotions[emotion] || 0) + 1;
         });
-
-        // Count keywords
-        entry.keywords.forEach(keyword => {
+        (entry.keywords || []).forEach((keyword) => {
           keywords[keyword] = (keywords[keyword] || 0) + 1;
         });
-
-        // Count sentiments
         if (entry.sentiment) {
           sentiments[entry.sentiment] = (sentiments[entry.sentiment] || 0) + 1;
         }
@@ -53,12 +68,12 @@ router.post('/summary', requireAuth, async (req, res, next) => {
 
       analysisData = {
         totalEntries: journalEntries.length,
-        dateRange: { start, end },
+        dateRange: { start: start || (journalEntries[0]?.date?.toISOString?.().split('T')[0] ?? ''), end: end || (journalEntries.at(-1)?.date?.toISOString?.().split('T')[0] ?? '') },
         emotions,
         keywords,
         sentiments,
         avgWordsPerEntry: journalEntries.length > 0 ?
-          Math.round(journalEntries.reduce((sum, entry) => sum + entry.content.split(' ').length, 0) / journalEntries.length) : 0
+          Math.round(journalEntries.reduce((sum, entry) => sum + String(entry.content || '').split(' ').length, 0) / journalEntries.length) : 0,
       };
     }
 
@@ -68,26 +83,23 @@ router.post('/summary', requireAuth, async (req, res, next) => {
 
     try {
       const summaryResponse = await axios.post(process.env.SUMMARY_URL || 'http://localhost:8003/summary', {
-        journals: journalEntries.map(entry => ({
-          content: entry.content,
-          date: entry.date.toISOString().split('T')[0],
-          emotions: entry.emotions,
-          keywords: entry.keywords,
-          sentiment: entry.sentiment
-        })),
-        start,
-        end,
-        emotions: analysisData.emotions,
-        keywords: analysisData.keywords,
-        sentiments: analysisData.sentiments
-      });
+        // The summary service expects a list of strings
+        journals: journalEntries.map((entry) => String(entry.content || '')),
+        start: analysisData.dateRange?.start || start || '',
+        end: analysisData.dateRange?.end || end || '',
+        emotions: analysisData.emotions || {},
+        keywords: analysisData.keywords || {},
+        sentiments: analysisData.sentiments || {},
+      }, { timeout: 7000 });
 
       aiSummary = summaryResponse.data.summary || 'Summary generation completed.';
       keyFindings = summaryResponse.data.keyFindings || [];
     } catch (e) {
-      console.error('Summary service error:', e);
+      console.error('Summary service error:', e?.message || e);
       // Fallback summary
-      aiSummary = `During your journaling journey from ${start} to ${end}, you created ${journalEntries.length} entries exploring various emotions and themes. Your consistent practice of self-reflection is a valuable step in your mental wellness journey.`;
+      const s = analysisData.dateRange?.start || start || 'the selected period';
+      const eDate = analysisData.dateRange?.end || end || '';
+      aiSummary = `During your journaling journey from ${s}${eDate ? ' to ' + eDate : ''}, you created ${analysisData.totalEntries || journalEntries.length} entries exploring various emotions and themes. Your consistent practice of self-reflection is a valuable step in your mental wellness journey.`;
       keyFindings = [
         'Consistent journaling practice shows commitment to self-reflection',
         'Emotional exploration indicates growing self-awareness',
@@ -98,7 +110,7 @@ router.post('/summary', requireAuth, async (req, res, next) => {
     res.json({
       aiSummary,
       analysisData,
-      keyFindings
+      keyFindings,
     });
   } catch (e) { next(e); }
 });

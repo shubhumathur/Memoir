@@ -8,7 +8,7 @@ import App from './pages/App';
 import Skeleton from './components/ui/Skeleton';
 
 // Lazy load pages for code splitting
-const Landing = lazy(() => import('./pages/Landing'));
+const Home = lazy(() => import('./pages/Home'));
 const Login = lazy(() => import('./pages/Login'));
 const Signup = lazy(() => import('./pages/Signup'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -33,7 +33,7 @@ const router = createBrowserRouter([
     path: '/',
     element: <App />,
     children: [
-      { index: true, element: <Suspense fallback={<LoadingFallback />}><Landing /></Suspense> },
+      { index: true, element: <Suspense fallback={<LoadingFallback />}><Home /></Suspense> },
       { path: 'login', element: <Suspense fallback={<LoadingFallback />}><Login /></Suspense> },
       { path: 'signup', element: <Suspense fallback={<LoadingFallback />}><Signup /></Suspense> },
       { path: 'dashboard', element: <Suspense fallback={<LoadingFallback />}><Dashboard /></Suspense> },
